@@ -13,17 +13,25 @@ def main():
                        help='Directory with base cases')
     parser.add_argument('-o', '--out_dir', required=True, metavar='output dir', type=str,
                        help='Directory to put findings in')
+    parser.add_argument('--regexs', metavar='regex file', type=str,
+                       help='File which contains regexs which automatically mark a run as unusual')
     parser.add_argument('command', type=str,
                        help='The program to fuzz. Use @@ in the command if program reads file')
 
     args = parser.parse_args()
 
     command = shlex.split(args.command)
-
+    
+    regexs = []
+    
     if not os.path.isdir(args.base_dir):
         raise ValueError('Base directory doesn\'t exist')
     if not os.path.exists(args.out_dir):
         os.makedirs(args.out_dir)
+    if args.regexs:
+        if not os.path.exists(args.regexs):
+            raise ValueError('Regexs file doesn\'t exist')
+        regexs = open(args.regexs, 'r').read().split('\n')
 
     print 'Fuzzing "{}" with command line arguments: {}'.format(command[0], command[1:])
 
@@ -82,11 +90,11 @@ def main():
     for i in range(10000):    
         base = base_runs[random.choice(base_runs.keys())]
     
-        mutated = mutate.random_insert(base['contents'], n_mutations = 10)
+        mutated = mutate.random_replace(base['contents'], n_mutations = 10)
     
         run = fuzzer.execute(command, mutated)
     
-        weird, cause = fuzzer.is_unusual(baseline, run, ignore=['stderr', 'timeout', 'runtime'])
+        weird, cause = fuzzer.is_unusual(baseline, run, override_regexs=regexs, ignore=['stderr', 'timeout', 'runtime'])
         if weird:
             print 'Mutated case is unusual due to its {}'.format(cause)
         
